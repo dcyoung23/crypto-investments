@@ -1,0 +1,11 @@
+# Jupyter Checkpoints
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# Byte-compiled / optimized / DLL files
+__pycache__
+__init__.py
+**.pyc
+
+# Param file
+**params.py*
