@@ -1,4 +1,5 @@
 import pandas as pd
+import talib as ta
 
 # Forward looking window decision metrics
 def window_metrics(df, window_size, min_periods, threshold):
@@ -54,3 +55,65 @@ def set_x_filter(df, start):
 
 def set_coin_name(df):
     return str(df['name'].unique()[0])
+
+
+def set_transformation_cols(cols, transformation):
+    return [col+'_'+transformation for col in cols]
+
+
+# Single time period metrics
+def create_single_tp_metrics(df, timeperiod):
+    df_out = df.copy()
+    df_out['adx'] = ta.ADX(df_out['high'], df_out['low'], df_out['close'], timeperiod=timeperiod)
+    df_out['cci'] = ta.CCI(df_out['high'], df_out['low'], df_out['close'], timeperiod=timeperiod)
+    df_out['cmo'] = ta.CMO(df_out['close'],  timeperiod=timeperiod)
+    df_out['dx'] = ta.DX(df_out['high'], df_out['low'], df_out['close'], timeperiod=timeperiod)
+    df_out['roc'] = ta.ROC(df_out['close'],  timeperiod=timeperiod)
+    df_out['rsi'] = ta.RSI(df_out['close'],  timeperiod=timeperiod)
+    df_out['willr'] = ta.WILLR(df_out['high'], df_out['low'], df_out['close'], timeperiod=timeperiod)
+    df_out['atr'] = ta.ATR(df_out['high'], df_out['low'], df_out['close'], timeperiod=timeperiod)
+    df_out['corr'] = ta.CORREL(df_out['high'], df_out['low'], timeperiod=timeperiod)
+    df_out['linreg'] = ta.LINEARREG(df_out['close'], timeperiod=timeperiod)
+    df_out['angle'] = ta.LINEARREG_ANGLE(df_out['close'], timeperiod=timeperiod)
+    df_out['intercept'] = ta.LINEARREG_INTERCEPT(df_out['close'], timeperiod=timeperiod)
+    df_out['slope'] = ta.LINEARREG_SLOPE(df_out['close'], timeperiod=timeperiod)
+    df_out['stdev'] = ta.STDDEV(df_out['close'], timeperiod=timeperiod, nbdev=1)
+    df_out['var'] = ta.VAR(df_out['close'], timeperiod=timeperiod, nbdev=1)
+    df_out['tsf'] = ta.TSF(df_out['close'], timeperiod=timeperiod)
+    return df_out
+
+
+# Momentum multiple slow and fast period metrics
+def create_multi_tp_metrics(df, fastperiod, slowperiod, signalperiod):
+    df_out = df.copy()
+    df_out['apo'] = ta.APO(df_out['close'], fastperiod=fastperiod, slowperiod=slowperiod, matype=0)
+    df_out['macd'], df_out['macdsignal'], df_out['macdhist'] = ta.MACD(df_out['close'], 
+                                                                       fastperiod=fastperiod, 
+                                                                       slowperiod=slowperiod, 
+                                                                       signalperiod=signalperiod)
+    df_out['ppo'] = ta.PPO(df_out['close'], fastperiod=fastperiod, slowperiod=slowperiod, matype=0)
+    return df_out
+
+
+def apply_transformation(df, cols, transformation, periods):
+    df_out = df.copy()
+    new_cols = set_transformation_cols(cols, transformation)
+    if transformation == 'pct_change':
+        df_out[new_cols] = df_out[cols].pct_change(periods)
+    elif transformation == 'mean':
+        df_out[new_cols] = df_out[cols].rolling(periods).mean()
+    elif transformation == 'stdev':
+        df_out[new_cols] = df_out[cols].rolling(periods).std()
+    return df_out
+
+
+def set_transformation_cols(cols, transformation):
+    return [col+'_'+transformation for col in cols]
+
+
+def create_rolling_r(df, target, cols, transformation, window, periods):
+    df_out = apply_transformation(df, cols, transformation, periods)
+    new_cols = set_transformation_cols(cols, transformation)
+    return df_out[target].rolling(window).corr(df_out[new_cols])
+
+

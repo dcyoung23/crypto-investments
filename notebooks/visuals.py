@@ -1,8 +1,11 @@
+import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
+from helpers import *
 
 # Plot to show decision points on Close line chart - Matplotlib/Seaborn version with legend
 def decision_plot(df, ax):
@@ -135,3 +138,179 @@ def stacked_slider(traces, params):
     if xrange:
         fig.update_layout(xaxis_range=xrange)
     fig.show(params['renderer'])
+
+
+def bband_plot(df, timeperiod, matype, start, renderer):
+    coin = set_coin_name(df)
+    x_domain = set_x_domain(df)
+    x_filter = set_x_filter(df, start)
+    bband_upper, bband_middle, bband_lower = ta.BBANDS(df['close'], timeperiod=timeperiod, matype=matype)
+
+    params = dict(vertical_spacing=0.1, row_heights=[1], subplot_titles=(None), 
+                        x_domain=x_domain, showlegend=True,
+                        title_text=coin+' Bollinger Bands with Buy-Hold-Sell Points',
+                        fig_size=(800, 600), xrange=x_filter, renderer=renderer)
+
+    traces = [dict(mode='lines', x=df.index, y=df['close'], name='Close', 
+                   line={'color': 'CornFlowerBlue'}),
+              dict(mode='lines', x=bband_upper.index, y=bband_upper, name='Upper Band',
+                   line={'color': 'DarkGrey', 'dash': 'solid'}),
+              dict(mode='lines', x=bband_middle.index, y=bband_middle, name='Middle Band',
+                   line={'color': 'DarkGrey', 'dash': 'dash'}),
+              dict(mode='lines', x=bband_lower.index, y=bband_lower, name='Lower Band',
+                   line={'color': 'DarkGrey', 'dash': 'solid'}),
+              dict(mode='markers', x=df.index, y=df['close'], name=None, 
+                   marker={'size': 4}, marker_color=df['color'], showlegend=False)
+             ]
+
+    single_slider(traces, params)
+
+
+def ma_plot(df, timeperiod, ma, exp, start, renderer):
+    coin = set_coin_name(df)
+    x_domain = set_x_domain(df)
+    x_filter = set_x_filter(df, start)
+    sma = ta.SMA(df['close'], timeperiod=timeperiod)
+    wma = ta.WMA(df['close'], timeperiod=timeperiod)
+    ema = ta.EMA(df['close'], timeperiod=timeperiod)
+    dema = ta.DEMA(df['close'], timeperiod=timeperiod)
+    tema = ta.TEMA(df['close'], timeperiod=timeperiod)
+
+    params = dict(vertical_spacing=0.1, row_heights=[1], subplot_titles=(None), 
+                        x_domain=x_domain, showlegend=True,
+                        title_text=coin+' Moving Averages (MA) with Buy-Hold-Sell Points',
+                        fig_size=(800, 600), xrange=x_filter, renderer=renderer)
+    
+    traces = [dict(mode='lines', x=df.index, y=df['close'], name='Close', 
+                   line={'color': 'CornFlowerBlue'}),
+              dict(mode='markers', x=df.index, y=df['close'], name=None, 
+                   marker={'size': 4}, marker_color=df['color'], showlegend=False)
+             ]
+    
+    ma_traces = [dict(mode='lines', x=sma.index, y=sma, name='Simple MA (SMA)',
+                      line={'dash': 'solid'}),
+                 dict(mode='lines', x=wma.index, y=wma, name='Weighted MA (WMA)',
+                      line={'dash': 'solid'})]
+    ema_traces = [dict(mode='lines', x=ema.index, y=ema, name='Exponential MA (EMA)',
+                      line={'dash': 'solid'}),
+                 dict(mode='lines', x=dema.index, y=dema, name='Double EMA (DEMA)',
+                      line={'dash': 'solid'}),
+                 dict(mode='lines', x=tema.index, y=tema, name='Triple EMA (TEMA)',
+                      line={'dash': 'solid'})]
+
+    if ma:
+        traces.extend(ma_traces)
+    if exp:
+        traces.extend(ema_traces)
+
+    single_slider(traces, params)
+
+
+def macd_plot(df, fastperiod, slowperiod, signalperiod, start, renderer):
+    coin = set_coin_name(df)
+    x_domain = set_x_domain(df)
+    x_filter = set_x_filter(df, start)
+    macd, macdsignal, macdhist = ta.MACD(df['close'], 
+                                         fastperiod=fastperiod, 
+                                         slowperiod=slowperiod, 
+                                         signalperiod=signalperiod)
+    
+    macdhist_color = pd.DataFrame(macdhist, columns=['macdhist'])
+    macdhist_color['color'] = np.where(macdhist_color["macdhist"] < 0, 'red', 'green')
+
+    params = dict(vertical_spacing=0.1, row_heights=[1, .75], subplot_titles=(None, 'MACD'), 
+                  x_domain=x_domain, showlegend=True,
+                  title_text=coin+' Buy-Hold-Sell Points with MACD',
+                  hlines=[],
+                  fig_size=(800, 600), xrange=x_filter, renderer=renderer)
+
+    traces = [dict(mode='lines', x=df.index, y=df['close'], name='Close', 
+                   line={'color': 'CornFlowerBlue'}, showlegend=True, row=1),
+              dict(mode='markers', x=df.index, y=df['close'], name=None, 
+                   marker={'size': 4}, marker_color=df['color'], showlegend=False, row=1),
+              dict(mode='lines', x=macd.index, y=macd, name='MACD',
+                   line={'dash': 'solid'}, showlegend=True, row=2),
+              dict(mode='lines', x=macdsignal.index, y=macdsignal, name='MACD Signal',
+                   line={'dash': 'solid'}, showlegend=True, row=2),
+              dict(mode='bar', x=macdhist.index, y=macdhist, name='MACD Histogram',
+                   marker_color=macdhist_color['color'], showlegend=True, row=2) 
+             ]
+
+    stacked_slider(traces, params)
+
+
+def generic_ta_plot(df, custom_params, sp, mp, start, renderer):
+    df_out = df.copy()
+    coin = set_coin_name(df)
+    col = custom_params['col']
+    label = col.upper()
+    x_domain = set_x_domain(df)
+    x_filter = set_x_filter(df, start)
+    if sp:
+        df_out = create_single_tp_metrics(df_out, 
+                                          sp['timeperiod'])
+    if mp:
+        df_out = create_multi_tp_metrics(df_out, 
+                                          mp['fastperiod'], 
+                                          mp['slowperiod'], 
+                                          mp['signalperiod'])
+    
+    params = dict(vertical_spacing=0.1, row_heights=[1, .5], subplot_titles=(None, label), 
+                  x_domain=x_domain, showlegend=True,
+                  title_text=coin+' Buy-Hold-Sell Points with '+label,
+                  hlines=custom_params['hlines'], fig_size=(800, 600), xrange=x_filter, renderer=renderer)
+
+    traces = [dict(mode='lines', x=df.index, y=df['close'], name='Close', 
+                   line={'color': 'CornFlowerBlue'}, showlegend=True, row=1),
+              dict(mode='markers', x=df.index, y=df['close'], name=None, 
+                   marker={'size': 4}, marker_color=df['color'], showlegend=False, row=1),
+              dict(mode='lines', x=df_out.index, y=df_out[col], name=label,
+                   line={'dash': 'solid'}, showlegend=True, row=2) 
+             ]
+
+    stacked_slider(traces, params)
+
+
+def rolling_r_heatmap(df, custom_params, ax):
+    rs = []
+    coin = set_coin_name(df)
+    target = custom_params['target']
+    cols = custom_params['cols']
+    window = custom_params['window']
+    transformation = custom_params['transformation']
+    periods_range = custom_params['periods_range']
+    for periods in periods_range:
+        rolling_r = create_rolling_r(df, target, cols, transformation, window, periods)
+        rs.append(list(rolling_r.abs().mean()))
+    rs_df = pd.DataFrame(rs, columns=cols, index=periods_range)
+    sns.heatmap(rs_df, cmap='YlGnBu', linewidths=.1, annot=True, square=False, ax=ax)
+    ax.set_ylabel('Periods')
+    ax.set_title(coin+' Rolling '+str(window)+' Window: '+transformation+' - Mean Absolute Correlation: ' + target, size=15)
+
+
+def rolling_r_plot(df, custom_params, start, renderer):
+    df_out = df.copy()
+    coin = set_coin_name(df)
+    x_domain = set_x_domain(df)
+    x_filter = set_x_filter(df, start)
+    col = [custom_params['col']]
+    transformation = custom_params['transformation']
+    
+    rolling_r = create_rolling_r(df, custom_params['target'], col, transformation, custom_params['window'], custom_params['periods'])
+    new_col = set_transformation_cols(col, transformation)[0]
+    label = new_col + ' Rolling Correlation'
+    
+    params = dict(vertical_spacing=0.1, row_heights=[1, .5], subplot_titles=(None, label), 
+                  x_domain=x_domain, showlegend=True,
+                  title_text=coin+' Buy-Hold-Sell Points with Rolling Correlation',
+                  hlines=custom_params['hlines'], fig_size=(800, 600), xrange=x_filter, renderer=renderer)
+
+    traces = [dict(mode='lines', x=df.index, y=df['close'], name='Close', 
+                   line={'color': 'CornFlowerBlue'}, showlegend=True, row=1),
+              dict(mode='markers', x=df.index, y=df['close'], name=None, 
+                   marker={'size': 4}, marker_color=df['color'], showlegend=False, row=1),
+              dict(mode='lines', x=rolling_r.index, y=rolling_r[new_col], name=new_col,
+                   line={'dash': 'solid'}, showlegend=False, row=2) 
+             ]
+
+    stacked_slider(traces, params)
