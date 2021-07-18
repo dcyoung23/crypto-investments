@@ -239,16 +239,19 @@ def macd_plot(df, fastperiod, slowperiod, signalperiod, start, renderer):
     stacked_slider(traces, params)
 
 
-def generic_ta_plot(df, custom_params, sp, mp, start, renderer):
+# Generic stacked Buy-Hold-Sell (bhs) plot
+def generic_bhs_plot(df, custom_params, start, renderer):
     df_out = df.copy()
     coin = set_coin_name(df)
     col = custom_params['col']
-    label = col.upper()
+    label = col
     x_domain = set_x_domain(df)
     x_filter = set_x_filter(df, start)
+    sp = custom_params['sp']
     if sp:
         df_out = create_single_tp_metrics(df_out, 
                                           sp['timeperiod'])
+    mp = custom_params['mp']
     if mp:
         df_out = create_multi_tp_metrics(df_out, 
                                           mp['fastperiod'], 
@@ -260,15 +263,22 @@ def generic_ta_plot(df, custom_params, sp, mp, start, renderer):
                   title_text=coin+' Buy-Hold-Sell Points with '+label,
                   hlines=custom_params['hlines'], fig_size=(800, 600), xrange=x_filter, renderer=renderer)
 
-    traces = [dict(mode='lines', x=df.index, y=df['close'], name='Close', 
+    traces = [dict(mode='lines', x=df.index, y=df['close'], name='close', 
                    line={'color': 'CornFlowerBlue'}, showlegend=True, row=1),
-              dict(mode='markers', x=df.index, y=df['close'], name=None, 
+              dict(mode='markers', x=df.index, y=df['close'], name='color', 
                    marker={'size': 4}, marker_color=df['color'], showlegend=False, row=1),
               dict(mode='lines', x=df_out.index, y=df_out[col], name=label,
                    line={'dash': 'solid'}, showlegend=True, row=2) 
              ]
 
     stacked_slider(traces, params)
+
+
+def global_r_heatmap(df, cols, ax):
+    coin = set_coin_name(df)
+    corr = df[cols].corr()
+    sns.heatmap(corr, cmap='YlGnBu', linewidths=.1, annot=True, square=False, ax=ax)
+    ax.set_title(coin+' Global Correlation', size=15)
 
 
 def rolling_r_heatmap(df, custom_params, ax):
@@ -305,12 +315,12 @@ def rolling_r_plot(df, custom_params, start, renderer):
                   title_text=coin+' Buy-Hold-Sell Points with Rolling Correlation',
                   hlines=custom_params['hlines'], fig_size=(800, 600), xrange=x_filter, renderer=renderer)
 
-    traces = [dict(mode='lines', x=df.index, y=df['close'], name='Close', 
+    traces = [dict(mode='lines', x=df.index, y=df['close'], name='close', 
                    line={'color': 'CornFlowerBlue'}, showlegend=True, row=1),
-              dict(mode='markers', x=df.index, y=df['close'], name=None, 
+              dict(mode='markers', x=df.index, y=df['close'], name='color', 
                    marker={'size': 4}, marker_color=df['color'], showlegend=False, row=1),
               dict(mode='lines', x=rolling_r.index, y=rolling_r[new_col], name=new_col,
-                   line={'dash': 'solid'}, showlegend=False, row=2) 
+                   line={'dash': 'solid'}, showlegend=True, row=2) 
              ]
 
     stacked_slider(traces, params)
