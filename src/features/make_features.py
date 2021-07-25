@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import talib as ta
+from ..utils.helpers import *
 
 # Forward looking window decision metrics
 def window_metrics(df, window_size, min_periods, threshold):
@@ -77,8 +78,8 @@ def create_multi_tp_metrics(df, fastperiod, slowperiod, signalperiod):
     df_out['ppo'] = ta.PPO(df_out['close'], fastperiod=fastperiod, slowperiod=slowperiod, matype=0)
     return df_out
 
-
-def create_social_metrics(df):
+# Social derived metrics
+def create_social_metrics(df, custom_transform):
     df_out = df.copy()
     df_out['tweet_sentiment_bullish'] = (df_out['tweet_sentiment4'] + df_out['tweet_sentiment5'])
     df_out['tweet_sentiment_bearish'] = (df_out['tweet_sentiment1'] + df_out['tweet_sentiment2'])
@@ -86,4 +87,7 @@ def create_social_metrics(df):
     df_out['tweet_sentiment_impact_bullish'] = (df_out['tweet_sentiment_impact4'] + df_out['tweet_sentiment_impact5'])
     df_out['tweet_sentiment_impact_bearish'] = (df_out['tweet_sentiment_impact1'] + df_out['tweet_sentiment_impact2'])   
     df_out['tweet_sentiment_impact_net'] = df_out['tweet_sentiment_impact_bullish'] - df_out['tweet_sentiment_impact_bearish']
+    if custom_transform:
+        for i in custom_transform:
+            df_out = apply_transformation(df_out, i[0], i[1], i[2])
     return df_out
