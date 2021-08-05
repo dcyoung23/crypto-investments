@@ -276,15 +276,19 @@ def generic_bhs_plot(df, custom_params, start, renderer):
     stacked_slider(traces, params)
 
 
-def global_r_heatmap(df, cols, ax):
+def global_corr_heatmap(df, transform_cols, cols, method, ax):
+    df_out = df[transform_cols].pct_change()
+    if cols:
+        # Add in the designated cols that are not being transformed
+        df_out[cols] = df[cols]
     coin = set_coin_name(df)
-    corr = df[cols].corr()
+    corr = df_out.corr(method=method)
     sns.heatmap(corr, cmap='YlGnBu', linewidths=.1, annot=True, square=False, ax=ax)
-    ax.set_title(coin+' Global Correlation', size=15)
+    ax.set_title(coin+' Global ' + method.capitalize() + ' Correlation', size=15)
 
 
-def rolling_r_heatmap(df, custom_params, ax):
-    rs = []
+def rolling_corr_heatmap(df, custom_params, ax):
+    corrs = []
     coin = set_coin_name(df)
     target = custom_params['target']
     cols = custom_params['cols']
@@ -292,15 +296,15 @@ def rolling_r_heatmap(df, custom_params, ax):
     transformation = custom_params['transformation']
     periods_range = custom_params['periods_range']
     for periods in periods_range:
-        rolling_r = create_rolling_r(df, target, cols, transformation, window, periods)
-        rs.append(list(rolling_r.abs().mean()))
-    rs_df = pd.DataFrame(rs, columns=cols, index=periods_range)
-    sns.heatmap(rs_df, cmap='YlGnBu', linewidths=.1, annot=True, square=False, ax=ax)
+        rolling_corr = create_rolling_corr(df, target, cols, transformation, window, periods)
+        corrs.append(list(rolling_corr.abs().mean()))
+    corrs_df = pd.DataFrame(corrs, columns=cols, index=periods_range)
+    sns.heatmap(corrs_df, cmap='YlGnBu', linewidths=.1, annot=True, square=False, ax=ax)
     ax.set_ylabel('Periods')
     ax.set_title(coin+' Rolling '+str(window)+' Window: '+transformation+' - Mean Absolute Correlation: ' + target, size=15)
 
 
-def rolling_r_plot(df, custom_params, start, renderer):
+def rolling_corr_plot(df, custom_params, start, renderer):
     df_out = df.copy()
     coin = set_coin_name(df)
     x_domain = set_x_domain(df)
@@ -308,7 +312,7 @@ def rolling_r_plot(df, custom_params, start, renderer):
     col = [custom_params['col']]
     transformation = custom_params['transformation']
     
-    rolling_r = create_rolling_r(df, custom_params['target'], col, transformation, custom_params['window'], custom_params['periods'])
+    rolling_corr = create_rolling_corr(df, custom_params['target'], col, transformation, custom_params['window'], custom_params['periods'])
     new_col = set_transformation_cols(col, transformation)[0]
     label = new_col + ' Rolling Correlation'
     
@@ -321,26 +325,27 @@ def rolling_r_plot(df, custom_params, start, renderer):
                    line={'color': 'CornFlowerBlue'}, showlegend=True, row=1),
               dict(mode='markers', x=df.index, y=df['close'], name='color', 
                    marker={'size': 4}, marker_color=df['color'], showlegend=False, row=1),
-              dict(mode='lines', x=rolling_r.index, y=rolling_r[new_col], name=new_col,
+              dict(mode='lines', x=rolling_corr.index, y=rolling_corr[new_col], name=new_col,
                    line={'dash': 'solid'}, showlegend=True, row=2) 
              ]
 
     stacked_slider(traces, params)
 
 
-def plot_results(predicted_data, true_data):
-    fig = plt.figure(facecolor='white')
-    ax = fig.add_subplot(111)
+def plot_results(predicted_data, true_data, ax):
     ax.plot(true_data, label='True Data')
     plt.plot(predicted_data, label='Prediction')
     plt.legend()
 
 
-def plot_results_multiple(predicted_data, true_data, prediction_len):
-    fig = plt.figure(facecolor='white')
-    ax = fig.add_subplot(111)
+def plot_results_multiple(predicted_data, true_data, sequence_length, threshold, ax):
+    taus, ps = evaluate_sequence_predictions(predicted_data, true_data)
     ax.plot(true_data, label='True Data')
     # Pad the list of predictions to shift it in the graph to it's correct start
-    for i, data in enumerate(predicted_data):
-        padding = [None for p in range(i * prediction_len)]
-        plt.plot(padding + data, label='Prediction')
+    for i, a in enumerate(predicted_data):
+        padding = [None for p in range(i * sequence_length)]
+        if taus[i] > threshold:
+            color = 'green'
+        else:
+            color = 'red'
+        ax.plot(padding + a, label='Prediction', color=color)

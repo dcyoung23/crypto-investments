@@ -11,7 +11,7 @@ class Timer():
 
 	def stop(self):
 		end_dt = dt.datetime.now()
-		print('Time taken: %s' % (end_dt - self.start_dt))
+		#print('Time taken: %s' % (end_dt - self.start_dt))
 
 
 def set_x_domain(df):
@@ -42,25 +42,22 @@ def apply_transformation(df, cols, transformation, periods):
     return df_out
 
 
-def set_transformation_cols(cols, transformation):
-    return [col+'_'+transformation for col in cols]
-
-
-def create_rolling_r(df, target, cols, transformation, window, periods):
+def create_rolling_corr(df, target, cols, transformation, window, periods):
     df_out = apply_transformation(df, cols, transformation, periods)
     new_cols = set_transformation_cols(cols, transformation)
     return df_out[target].rolling(window).corr(df_out[new_cols])
 
 
-def evaluate_period_predictions(predictions, y_test, threshold):
-    vs = []
-    for i in range(len(predictions)):
-        a = predictions[i]
+def evaluate_sequence_predictions(predicted_data, true_data):
+    taus = []
+    ps = []
+    for i in range(len(predicted_data)):
+        a = predicted_data[i]
         l = len(a)
-        b = y_test[l*i:l*(i+1)].flatten()
+        b = true_data[l*i:l*(i+1)].flatten()
         tau, p_value = stats.kendalltau(a, b)
-        vs.append((tau, p_value))
-    good = len([v[0] for v in vs if v[0] > threshold])
-    return good/float(len(vs))
+        taus.append(tau)
+        ps.append(p_value)
+    return taus, ps
 
 
