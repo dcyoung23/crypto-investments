@@ -31,7 +31,7 @@ def window_metrics(df, window_size, min_periods, threshold):
            & (df_out['close_end_1d'] > df_out['close'])
            & (df_out['close_gain_'+tp] > threshold), 'decision'] = 'Buy'
     # Sell logic
-    df_out.loc[(df_out['close_change_'+tp] <= 0) 
+    df_out.loc[(df_out['close_change_'+tp] < 0) 
            & (df_out['close_end_1d'] < df_out['close'])
            & (df_out['close_loss_'+tp] < -threshold), 'decision'] = 'Sell'
     # All else hold
@@ -77,6 +77,7 @@ def create_multi_tp_metrics(df, fastperiod, slowperiod, signalperiod):
                                                                        slowperiod=slowperiod, signalperiod=signalperiod)
     df_out['ppo'] = ta.PPO(df_out['close'], fastperiod=fastperiod, slowperiod=slowperiod, matype=0)
     return df_out
+
 
 # Social derived metrics
 def create_social_metrics(df, custom_transform):

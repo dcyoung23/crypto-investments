@@ -339,22 +339,15 @@ def plot_results(predicted_data, true_data):
     plt.legend()
 
 
-def plot_results_multiple(predicted_data, true_data, sequence_length, metric, threshold, title):
+def plot_results_multiple(predicted_data, true_data, sequence_length, title):
     fig, ax = plt.subplots(figsize=(10,5))
     seq_metrics = evaluate_sequence_predictions(true_data, predicted_data)
-    if metric == 'kendalltau':
-        taus = [x[0] for x in seq_metrics['kendalltau']]
-        vs = [x[1] for x in seq_metrics['kendalltau']]
-    else:
-        vs = seq_metrics[metric]
+    vs = seq_metrics['accuracy']
     ax.plot(true_data, label='True Data')
     # Pad the list of predictions to shift it in the graph to it's correct start
     for i, a in enumerate(predicted_data):
         padding = [None for p in range(i * sequence_length)]
-        if vs[i] <= threshold:
-            color = 'green'
-        else:
-            color = 'red'
+        color = set_accuracy_trend_color(vs[i][0], vs[i][1])
         ax.plot(padding + a, label='Prediction', color=color)
     ax.set_title(title)
     plt.show()

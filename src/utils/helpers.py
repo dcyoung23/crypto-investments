@@ -4,17 +4,6 @@ import numpy as np
 import scipy.stats as stats
 import pandas as pd
 
-class Timer():
-
-	def __init__(self):
-		self.start_dt = None
-
-	def start(self):
-		self.start_dt = dt.datetime.now()
-
-	def stop(self):
-		end_dt = dt.datetime.now()
-
 
 def set_x_domain(df):
     return (df.index.min().strftime("%Y-%m-%d"), df.index.max().strftime("%Y-%m-%d"))
@@ -76,13 +65,13 @@ def data_preprocessing_scaling(scaler, df, cols, test_periods):
     # Identify end time period and create training data
     train_end = set_train_end(df_out, test_periods)
     train_df = df_out[:train_end]
-    scaler_out = scaler.fit(train_df)
+    scaler.fit(train_df)
     # Transform training data
-    train_df_scaled = pd.DataFrame(scaler_out.transform(train_df), columns=train_df.columns, index=train_df.index)
+    train_df_scaled = pd.DataFrame(scaler.transform(train_df), columns=train_df.columns, index=train_df.index)
     # Create test and transform test data
     test_df = df_out[train_end:]
-    test_df_scaled = pd.DataFrame(scaler_out.transform(test_df), columns=test_df.columns, index=test_df.index)
-
+    test_df_scaled = pd.DataFrame(scaler.transform(test_df), columns=test_df.columns, index=test_df.index)
+    scaler_out = copy.deepcopy(scaler)
     return df_out, train_df_scaled, test_df_scaled, scaler_out
 
 
@@ -90,12 +79,16 @@ def standardize_window(scaler, df, window):
     nrows = df.shape[0]
     windows = set_windows(nrows, window)
     df_normalized = df.copy()
+    scalers = []
     for i in range(len(windows)-1):
         window_start = windows[i]
         window_end = windows[i+1]
         scaler.fit(df_normalized[window_start:window_end])
         df_normalized[window_start:window_end] = scaler.transform(df_normalized[window_start:window_end])
-    return df_normalized
+        # Make a deep copy of the scaler fitted for the window to use later for inverse transformation of the window
+        scaler_window = copy.deepcopy(scaler)
+        scalers.append([(window_start, window_end), scaler_window])
+    return df_normalized, scalers
 
 
 def data_preprocessing_standardize(scaler, df, cols, test_periods, window):
@@ -109,11 +102,25 @@ def data_preprocessing_standardize(scaler, df, cols, test_periods, window):
         return data_preprocessing_scaling(scaler, df_out, cols, test_periods)
     elif window > 0:
         train_df = df_out[:train_end]
-        train_df_scaled = standardize_window(scaler, train_df, window)
+        train_df_scaled, train_scalers = standardize_window(scaler, train_df, window)
         test_df = df_out[train_end:]
-        test_df_scaled = standardize_window(scaler, test_df, window)
-        return df_out, train_df_scaled, test_df_scaled, None   
+        test_df_scaled, test_scalers = standardize_window(scaler, test_df, window)
+        return df_out, train_df_scaled, test_df_scaled, (train_scalers, test_scalers)
 
+
+def inverse_transform_global(scaler, data):
+    df_transformed = pd.DataFrame(scaler.inverse_transform(data), columns=data.columns, index=data.index)
+    return df_transformed
+
+
+def inverse_transform_window(scalers, data):
+    df_transformed = data.copy()
+    for window, scaler in scalers:
+        window_start = window[0]
+        window_end = window[1]
+        df_transformed[window_start:window_end] = scaler.inverse_transform(df_transformed[window_start:window_end])
+    return df_transformed
+    
 
 def data_preprocessing_pct_change(df, cols, test_periods, window):
     # Select columns and remove blanks
@@ -179,6 +186,28 @@ def mase(true_data, predicted_data, shift):
     return mae(true_data, predicted_data) / mae(true_data[shift:], true_data[:-shift])
 
 
+def accuracy(true_data, predicted_data):
+    return np.mean(true_data == predicted_data)
+
+
+def set_sequence_trend(a, threshold=0.05):
+    a_pct = (a[1:] - a[0]) / np.abs(a[0])
+    a_pct_end = a_pct[-1]
+    a_pct_mean = np.mean(a_pct)
+    a_pct_max = np.max(a_pct)
+    a_pct_min = np.min(a_pct)
+    trend = 0
+    if a_pct_max > threshold and a_pct_end > 0 and a_pct_mean > 0:
+        trend = 2
+    elif a_pct_max < threshold and a_pct_end > 0 and a_pct_mean > 0:
+        trend = 1
+    elif a_pct_min < -threshold and a_pct_end < 0 and a_pct_mean < 0:
+        trend = -2
+    elif a_pct_min > -threshold and a_pct_end < 0 and a_pct_mean < 0:
+        trend = -1
+    return trend
+
+
 def evaluation_metrics(true_data, predicted_data):
     metrics = {}
     # Flatten predictions
@@ -194,6 +223,10 @@ def evaluation_metrics(true_data, predicted_data):
     # Kendall’s tau correlation measure
     tau, p_value = stats.kendalltau(true_data_flat, predicted_data_flat)
     metrics['kendalltau'] = (tau, p_value)
+    # Trend accuracy custom metric
+    true_trend = set_sequence_trend(true_data_flat)
+    predicted_trend = set_sequence_trend(predicted_data_flat)
+    metrics['accuracy'] = (true_trend, predicted_trend, accuracy(true_trend, predicted_trend))
     return metrics
 
 
@@ -218,13 +251,37 @@ def mean_tau_seq_stat_sig(results, alpha):
     return np.mean(mean_ps)
 
 
+def mean_accuracy(results):
+    return np.mean(np.array([d[2] for d in results['accuracy']]))
+
+
+def mean_accuracy_seq(results):
+    mean_accs = []
+    seq_accs = [d['accuracy'] for d in results]
+    for seq in seq_accs:
+        accs = np.array([acc[2] for acc in seq])
+        mean_accs.append(np.mean(accs))
+    return np.mean(mean_accs)
+
+
+def set_accuracy_trend_color(actual_trend, predicted_trend):
+    if actual_trend == predicted_trend:
+        color = 'green'
+    elif actual_trend > 0 and predicted_trend > 0 or actual_trend < 0 and predicted_trend < 0:
+        color = 'orange'
+    else:
+        color = 'red'
+    return color
+
+
 def evaluate_sequence_predictions(true_data, predicted_data):
     seq_metrics = {}
-    # Make this dynamic for all potential metrics
+    ##### Make this dynamic for all potential metrics
     mdas = []
     maes = []
     mases = []
     taus = []
+    acc = []
     for i in range(len(predicted_data)):
         predicted = np.array(predicted_data[i])
         l = len(predicted)
@@ -234,10 +291,12 @@ def evaluate_sequence_predictions(true_data, predicted_data):
         maes.append(metrics['mae'])
         mases.append(metrics['mase'])
         taus.append(metrics['kendalltau'])
+        acc.append(metrics['accuracy'])
     seq_metrics['mda'] = mdas
     seq_metrics['mae'] = maes
     seq_metrics['mase'] = mases
     seq_metrics['kendalltau'] = taus
+    seq_metrics['accuracy'] = acc
     return seq_metrics
 
 

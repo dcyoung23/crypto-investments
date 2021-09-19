@@ -33,11 +33,13 @@ class Model():
 		self.model.compile(loss=model_configs['model']['loss'], optimizer=model_configs['model']['optimizer'])
 
 	def train(self, X, y, train_configs):
-
-		callbacks = [
-			EarlyStopping(monitor='val_loss', patience=3),
+		if train_configs['model_checkpoint']:
+			callbacks = [EarlyStopping(monitor='val_loss', patience=train_configs['patience']),
 			ModelCheckpoint(filepath=train_configs['save_fname'], monitor='val_loss', save_best_only=True)
 		]
+		else:
+			callbacks = [EarlyStopping(monitor='val_loss', patience=train_configs['patience'])]
+
 		self.model.fit(
 			X,
 			y,
