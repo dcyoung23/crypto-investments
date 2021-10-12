@@ -2,6 +2,7 @@ import numpy as np
 from tensorflow.keras.layers import Dense, Activation, Dropout, LSTM
 from tensorflow.keras.models import Sequential, load_model
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow.keras.optimizers import Adam
 from ..utils.helpers import *
 
 class Model():
@@ -30,7 +31,8 @@ class Model():
 			if layer['type'] == 'dropout':
 				self.model.add(Dropout(dropout_rate))
 
-		self.model.compile(loss=model_configs['model']['loss'], optimizer=model_configs['model']['optimizer'])
+		opt = Adam(**model_configs['model']['optimizer'])
+		self.model.compile(loss=model_configs['model']['loss'], optimizer=opt)
 
 	def train(self, X, y, train_configs):
 		if train_configs['model_checkpoint']:
@@ -57,6 +59,17 @@ class Model():
 		predicted = np.reshape(predicted, (predicted.size,))
 		return predicted
 
+
+	def predict_sequences_once(self, data, steps_ahead):
+		# Predict sequences at once but then limit prediction sequences at each step only
+		# This will match the regressive method below
+		predicted = self.model.predict(data)
+		predicted = predicted[0::steps_ahead]
+		# To match autoregressive sequences convert to a list of lists
+		prediction_seqs = [list(p) for p in predicted]
+		return prediction_seqs
+
+
 	def predict_sequences_multiple(self, data, window_size, prediction_len):
 		# Predict for each sequence before shifting prediction forward
 		prediction_seqs = []
@@ -79,4 +92,6 @@ class Model():
 			curr_frame = curr_frame[1:]
 			curr_frame = np.insert(curr_frame, [window_size-2], predicted[-1], axis=0)
 		return predicted
+
+	
     

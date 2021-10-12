@@ -43,6 +43,11 @@ def set_train_end(df, test_periods):
     return df.shape[0] - test_periods
 
 
+def set_total_len(input_len, steps_ahead):
+    total_len = input_len + steps_ahead
+    return total_len, steps_ahead
+
+
 def set_windows(nrows, window):
     windows = list(range(0, nrows, window))
     rem = nrows % window
@@ -149,24 +154,40 @@ def data_preprocessing_pct_change(df, cols, test_periods, window):
     return df_out, train_df_scaled, test_df_scaled
 
 
-def create_timeseries_data(df, target_col, sequence_length):
+def create_target_data(df, target_col, sequence_length, steps_ahead):
+    targets = df[target_col][sequence_length:].values.reshape(-1, 1)
+    n = targets.shape[0]
+    if steps_ahead > 1:
+        y = np.hstack(tuple([targets[i: n-j, :] for i, j in enumerate(range(steps_ahead, 0, -1))]))
+    else:
+        y = targets
+    return y, targets
+
+
+def create_timeseries_data(df, target_col, sequence_length, steps_ahead):
+    # Create targets
+    y, targets = create_target_data(df, target_col, sequence_length, steps_ahead)
     n = df.shape[0]
     d = df.shape[1]
-    y = df[target_col][sequence_length:].values
     if d == 1:
         data = df.values.reshape(-1, 1)
         X = np.hstack(tuple([data[i: n-j, :] for i, j in enumerate(range(sequence_length, 0, -1))]))
         X = X.reshape(-1, sequence_length, 1)
     elif d > 1:
         X = np.stack([df[i: j] for i, j in enumerate(range(sequence_length, n))], axis=0)
-    return X, y
+    # If multiple steps ahead then need to limit X samples
+    if steps_ahead > 1:
+        X = X[:y.shape[0]]
+    return X, y, targets
 
 
-def update_model_input_dim(config, X_shape):
+def update_model_input_dim(config, X_shape, y_shape):
     # Make a deep copy of configs to send out for custom params for each model
     config_out = copy.deepcopy(config)
-    config_out['model']['layers'][0]['input_timesteps'] = X_shape[1]
+    #config_out['model']['layers'][0]['input_timesteps'] = X_shape[1]
+    config_out['model']['layers'][0]['input_timesteps'] = None
     config_out['model']['layers'][0]['input_dim'] = X_shape[2]
+    config_out['model']['layers'][-1]['neurons'] = y_shape[1]
     return config_out
 
 
@@ -300,9 +321,12 @@ def evaluate_sequence_predictions(true_data, predicted_data):
     return seq_metrics
 
 
-def evaluate_model(model, X, y, sequence_length, prediction_len):
+def evaluate_model(model, X, y, sequence_length, prediction_len, steps_ahead):
     # Make predictions
-    predictions = model.predict_sequences_multiple(X, sequence_length, prediction_len)
+    if steps_ahead > 1:
+        predictions = model.predict_sequences_once(X, steps_ahead)
+    else:
+        predictions = model.predict_sequences_multiple(X, sequence_length, prediction_len)
     seq_metrics = evaluate_sequence_predictions(y, predictions)
     return predictions, seq_metrics
 
