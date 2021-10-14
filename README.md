@@ -26,7 +26,7 @@ Buy
 2. Change in close price from the start to end of window is higher (window candle is green)
 3. Lowest price during the window is >= the low price for the current day
 
-*Sell
+Sell
 1. Maximum loss during the window is < the desired threshold
 2. Change in close price from the start to end of window is lower (window candle is red)
 3. Highest price during the window is <= the high price for the current day
