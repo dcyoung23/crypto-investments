@@ -66,7 +66,7 @@ This research [article](https://www.researchgate.net/publication/324802031_Algor
 
 The baseline model was a simple one-dimensional LSTM using the close price to predict the future sequence.  Due to stochastic nature of a RNN model training, the results can vary for each run so I trained multiple models to average the evaluation metrics for both coins.  The primary evaluation metric I used was a custom evaluation metric based on directional trend analysis. The objective was to be able to predict the correct directional change while also being able to identify large % increase or decreases.  The mean sequence accuracy was 0.49 and 0.62 for Bitcoin and Dogecoin respectively.
 
-Next I evaluated multiple multi-dimensional LSTM models but using a brute force approach to identify which features improved the baseline model.  
+Next I evaluated multiple multi-dimensional LSTM models but using a brute force approach to identify which features improved the baseline model.  This phase of the project was a challenge because I had a hard time finding a more streamlined way to perform feature selection for a LSTM model.  As a result the process was a little time consuming and I used some human judgment on the final variables selected for each coin.
 
 The final Bitcoin model included close, linear regression, percent change 24h rank, social volume 24h rank and tween sentiment bullish and improved sequence accuracy to 0.7.
 
