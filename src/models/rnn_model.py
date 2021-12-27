@@ -83,6 +83,7 @@ class Model():
 			prediction_seqs.append(predicted)
 		return prediction_seqs
 
+
 	def predict_sequence_full(self, data, window_size):
 		# Shift the window by 1 new prediction each time, re-run predictions on new window
 		curr_frame = data[0]
